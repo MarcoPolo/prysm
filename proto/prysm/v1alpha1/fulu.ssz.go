@@ -1962,15 +1962,24 @@ func (d *DataColumnSidecar) MarshalSSZTo(buf []byte) (dst []byte, err error) {
 
 	// Offset (1) 'Column'
 	dst = ssz.WriteOffset(dst, offset)
-	offset += len(d.Column) * 2048
+	for ii := 0; ii < len(d.Column); ii++ {
+		offset += 4
+		offset += len(d.Column[ii])
+	}
 
 	// Offset (2) 'KzgCommitments'
 	dst = ssz.WriteOffset(dst, offset)
-	offset += len(d.KzgCommitments) * 48
+	for ii := 0; ii < len(d.KzgCommitments); ii++ {
+		offset += 4
+		offset += len(d.KzgCommitments[ii])
+	}
 
 	// Offset (3) 'KzgProofs'
 	dst = ssz.WriteOffset(dst, offset)
-	offset += len(d.KzgProofs) * 48
+	for ii := 0; ii < len(d.KzgProofs); ii++ {
+		offset += 4
+		offset += len(d.KzgProofs[ii])
+	}
 
 	// Field (4) 'SignedBlockHeader'
 	if d.SignedBlockHeader == nil {
@@ -1998,8 +2007,15 @@ func (d *DataColumnSidecar) MarshalSSZTo(buf []byte) (dst []byte, err error) {
 		err = ssz.ErrListTooBigFn("--.Column", size, 4096)
 		return
 	}
+	{
+		offset = 4 * len(d.Column)
+		for ii := 0; ii < len(d.Column); ii++ {
+			dst = ssz.WriteOffset(dst, offset)
+			offset += len(d.Column[ii])
+		}
+	}
 	for ii := 0; ii < len(d.Column); ii++ {
-		if size := len(d.Column[ii]); size != 2048 {
+		if size := len(d.Column[ii]); size > 2048 {
 			err = ssz.ErrBytesLengthFn("--.Column[ii]", size, 2048)
 			return
 		}
@@ -2011,8 +2027,15 @@ func (d *DataColumnSidecar) MarshalSSZTo(buf []byte) (dst []byte, err error) {
 		err = ssz.ErrListTooBigFn("--.KzgCommitments", size, 4096)
 		return
 	}
+	{
+		offset = 4 * len(d.KzgCommitments)
+		for ii := 0; ii < len(d.KzgCommitments); ii++ {
+			dst = ssz.WriteOffset(dst, offset)
+			offset += len(d.KzgCommitments[ii])
+		}
+	}
 	for ii := 0; ii < len(d.KzgCommitments); ii++ {
-		if size := len(d.KzgCommitments[ii]); size != 48 {
+		if size := len(d.KzgCommitments[ii]); size > 48 {
 			err = ssz.ErrBytesLengthFn("--.KzgCommitments[ii]", size, 48)
 			return
 		}
@@ -2024,8 +2047,15 @@ func (d *DataColumnSidecar) MarshalSSZTo(buf []byte) (dst []byte, err error) {
 		err = ssz.ErrListTooBigFn("--.KzgProofs", size, 4096)
 		return
 	}
+	{
+		offset = 4 * len(d.KzgProofs)
+		for ii := 0; ii < len(d.KzgProofs); ii++ {
+			dst = ssz.WriteOffset(dst, offset)
+			offset += len(d.KzgProofs[ii])
+		}
+	}
 	for ii := 0; ii < len(d.KzgProofs); ii++ {
-		if size := len(d.KzgProofs[ii]); size != 48 {
+		if size := len(d.KzgProofs[ii]); size > 48 {
 			err = ssz.ErrBytesLengthFn("--.KzgProofs[ii]", size, 48)
 			return
 		}
@@ -2088,48 +2118,69 @@ func (d *DataColumnSidecar) UnmarshalSSZ(buf []byte) error {
 	// Field (1) 'Column'
 	{
 		buf = tail[o1:o2]
-		num, err := ssz.DivideInt2(len(buf), 2048, 4096)
+		num, err := ssz.DecodeDynamicLength(buf, 4096)
 		if err != nil {
 			return err
 		}
 		d.Column = make([][]byte, num)
-		for ii := 0; ii < num; ii++ {
-			if cap(d.Column[ii]) == 0 {
-				d.Column[ii] = make([]byte, 0, len(buf[ii*2048:(ii+1)*2048]))
+		err = ssz.UnmarshalDynamic(buf, num, func(indx int, buf []byte) (err error) {
+			if len(buf) > 2048 {
+				return ssz.ErrBytesLength
 			}
-			d.Column[ii] = append(d.Column[ii], buf[ii*2048:(ii+1)*2048]...)
+			if cap(d.Column[indx]) == 0 {
+				d.Column[indx] = make([]byte, 0, len(buf))
+			}
+			d.Column[indx] = append(d.Column[indx], buf...)
+			return nil
+		})
+		if err != nil {
+			return err
 		}
 	}
 
 	// Field (2) 'KzgCommitments'
 	{
 		buf = tail[o2:o3]
-		num, err := ssz.DivideInt2(len(buf), 48, 4096)
+		num, err := ssz.DecodeDynamicLength(buf, 4096)
 		if err != nil {
 			return err
 		}
 		d.KzgCommitments = make([][]byte, num)
-		for ii := 0; ii < num; ii++ {
-			if cap(d.KzgCommitments[ii]) == 0 {
-				d.KzgCommitments[ii] = make([]byte, 0, len(buf[ii*48:(ii+1)*48]))
+		err = ssz.UnmarshalDynamic(buf, num, func(indx int, buf []byte) (err error) {
+			if len(buf) > 48 {
+				return ssz.ErrBytesLength
 			}
-			d.KzgCommitments[ii] = append(d.KzgCommitments[ii], buf[ii*48:(ii+1)*48]...)
+			if cap(d.KzgCommitments[indx]) == 0 {
+				d.KzgCommitments[indx] = make([]byte, 0, len(buf))
+			}
+			d.KzgCommitments[indx] = append(d.KzgCommitments[indx], buf...)
+			return nil
+		})
+		if err != nil {
+			return err
 		}
 	}
 
 	// Field (3) 'KzgProofs'
 	{
 		buf = tail[o3:]
-		num, err := ssz.DivideInt2(len(buf), 48, 4096)
+		num, err := ssz.DecodeDynamicLength(buf, 4096)
 		if err != nil {
 			return err
 		}
 		d.KzgProofs = make([][]byte, num)
-		for ii := 0; ii < num; ii++ {
-			if cap(d.KzgProofs[ii]) == 0 {
-				d.KzgProofs[ii] = make([]byte, 0, len(buf[ii*48:(ii+1)*48]))
+		err = ssz.UnmarshalDynamic(buf, num, func(indx int, buf []byte) (err error) {
+			if len(buf) > 48 {
+				return ssz.ErrBytesLength
 			}
-			d.KzgProofs[ii] = append(d.KzgProofs[ii], buf[ii*48:(ii+1)*48]...)
+			if cap(d.KzgProofs[indx]) == 0 {
+				d.KzgProofs[indx] = make([]byte, 0, len(buf))
+			}
+			d.KzgProofs[indx] = append(d.KzgProofs[indx], buf...)
+			return nil
+		})
+		if err != nil {
+			return err
 		}
 	}
 	return err
@@ -2140,13 +2191,22 @@ func (d *DataColumnSidecar) SizeSSZ() (size int) {
 	size = 356
 
 	// Field (1) 'Column'
-	size += len(d.Column) * 2048
+	for ii := 0; ii < len(d.Column); ii++ {
+		size += 4
+		size += len(d.Column[ii])
+	}
 
 	// Field (2) 'KzgCommitments'
-	size += len(d.KzgCommitments) * 48
+	for ii := 0; ii < len(d.KzgCommitments); ii++ {
+		size += 4
+		size += len(d.KzgCommitments[ii])
+	}
 
 	// Field (3) 'KzgProofs'
-	size += len(d.KzgProofs) * 48
+	for ii := 0; ii < len(d.KzgProofs); ii++ {
+		size += 4
+		size += len(d.KzgProofs[ii])
+	}
 
 	return
 }
@@ -2165,59 +2225,71 @@ func (d *DataColumnSidecar) HashTreeRootWith(hh *ssz.Hasher) (err error) {
 
 	// Field (1) 'Column'
 	{
-		if size := len(d.Column); size > 4096 {
-			err = ssz.ErrListTooBigFn("--.Column", size, 4096)
+		subIndx := hh.Index()
+		num := uint64(len(d.Column))
+		if num > 4096 {
+			err = ssz.ErrIncorrectListSize
 			return
 		}
-		subIndx := hh.Index()
-		for _, i := range d.Column {
-			if len(i) != 2048 {
-				err = ssz.ErrBytesLength
-				return
+		for _, elem := range d.Column {
+			{
+				elemIndx := hh.Index()
+				byteLen := uint64(len(elem))
+				if byteLen > 2048 {
+					err = ssz.ErrIncorrectListSize
+					return
+				}
+				hh.AppendBytes32(elem)
+				hh.MerkleizeWithMixin(elemIndx, byteLen, (2048+31)/32)
 			}
-			hh.PutBytes(i)
 		}
-
-		numItems := uint64(len(d.Column))
-		hh.MerkleizeWithMixin(subIndx, numItems, 4096)
+		hh.MerkleizeWithMixin(subIndx, num, 4096)
 	}
 
 	// Field (2) 'KzgCommitments'
 	{
-		if size := len(d.KzgCommitments); size > 4096 {
-			err = ssz.ErrListTooBigFn("--.KzgCommitments", size, 4096)
+		subIndx := hh.Index()
+		num := uint64(len(d.KzgCommitments))
+		if num > 4096 {
+			err = ssz.ErrIncorrectListSize
 			return
 		}
-		subIndx := hh.Index()
-		for _, i := range d.KzgCommitments {
-			if len(i) != 48 {
-				err = ssz.ErrBytesLength
-				return
+		for _, elem := range d.KzgCommitments {
+			{
+				elemIndx := hh.Index()
+				byteLen := uint64(len(elem))
+				if byteLen > 48 {
+					err = ssz.ErrIncorrectListSize
+					return
+				}
+				hh.AppendBytes32(elem)
+				hh.MerkleizeWithMixin(elemIndx, byteLen, (48+31)/32)
 			}
-			hh.PutBytes(i)
 		}
-
-		numItems := uint64(len(d.KzgCommitments))
-		hh.MerkleizeWithMixin(subIndx, numItems, 4096)
+		hh.MerkleizeWithMixin(subIndx, num, 4096)
 	}
 
 	// Field (3) 'KzgProofs'
 	{
-		if size := len(d.KzgProofs); size > 4096 {
-			err = ssz.ErrListTooBigFn("--.KzgProofs", size, 4096)
+		subIndx := hh.Index()
+		num := uint64(len(d.KzgProofs))
+		if num > 4096 {
+			err = ssz.ErrIncorrectListSize
 			return
 		}
-		subIndx := hh.Index()
-		for _, i := range d.KzgProofs {
-			if len(i) != 48 {
-				err = ssz.ErrBytesLength
-				return
+		for _, elem := range d.KzgProofs {
+			{
+				elemIndx := hh.Index()
+				byteLen := uint64(len(elem))
+				if byteLen > 48 {
+					err = ssz.ErrIncorrectListSize
+					return
+				}
+				hh.AppendBytes32(elem)
+				hh.MerkleizeWithMixin(elemIndx, byteLen, (48+31)/32)
 			}
-			hh.PutBytes(i)
 		}
-
-		numItems := uint64(len(d.KzgProofs))
-		hh.MerkleizeWithMixin(subIndx, numItems, 4096)
+		hh.MerkleizeWithMixin(subIndx, num, 4096)
 	}
 
 	// Field (4) 'SignedBlockHeader'

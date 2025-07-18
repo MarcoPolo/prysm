@@ -28,16 +28,16 @@ option php_namespace = "Ethereum\\Eth\\v1alpha1";
 message DataColumnSidecar {
   uint64 index = 1;
   repeated bytes column = 2 [
-    (ethereum.eth.ext.ssz_size) = "?,bytes_per_cell.size",
-    (ethereum.eth.ext.ssz_max) = "max_blob_commitments.size"
+    (ethereum.eth.ext.ssz_size) = "?,?",
+    (ethereum.eth.ext.ssz_max) = "max_blob_commitments.size,bytes_per_cell.size"
   ];
   repeated bytes kzg_commitments = 3 [
-    (ethereum.eth.ext.ssz_size) = "?,48",
-    (ethereum.eth.ext.ssz_max) = "max_blob_commitments.size"
+    (ethereum.eth.ext.ssz_size) = "?,?",
+    (ethereum.eth.ext.ssz_max) = "max_blob_commitments.size,48"
   ];
   repeated bytes kzg_proofs = 4 [
-    (ethereum.eth.ext.ssz_size) = "?,48",
-    (ethereum.eth.ext.ssz_max) = "max_blob_commitments.size"
+    (ethereum.eth.ext.ssz_size) = "?,?",
+    (ethereum.eth.ext.ssz_max) = "max_blob_commitments.size,48"
   ];
   SignedBeaconBlockHeader signed_block_header = 5;
   repeated bytes kzg_commitments_inclusion_proof = 6
