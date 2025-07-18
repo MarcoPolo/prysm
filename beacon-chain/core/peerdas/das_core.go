@@ -12,6 +12,7 @@ import (
 	"github.com/OffchainLabs/prysm/v6/consensus-types/interfaces"
 	"github.com/OffchainLabs/prysm/v6/crypto/hash"
 	"github.com/OffchainLabs/prysm/v6/encoding/bytesutil"
+	enginepb "github.com/OffchainLabs/prysm/v6/proto/engine/v1"
 	ethpb "github.com/OffchainLabs/prysm/v6/proto/prysm/v1alpha1"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/holiman/uint256"
@@ -160,6 +161,71 @@ func DataColumnSidecars(signedBlock interfaces.ReadOnlySignedBeaconBlock, cellsA
 	}
 
 	return dataColumnSidecars, nil
+}
+
+func PartialDataColumnSidecars(signedBlock interfaces.ReadOnlySignedBeaconBlock, blobsAndProofs []*enginepb.BlobAndProofV2) ([]ethpb.PartialDataColumnSidecar, error) {
+	if signedBlock == nil || signedBlock.IsNil() || len(blobsAndProofs) == 0 {
+		return nil, nil
+	}
+
+	block := signedBlock.Block()
+	blockBody := block.Body()
+	blobKzgCommitments, err := blockBody.BlobKzgCommitments()
+	if err != nil {
+		return nil, errors.Wrap(err, "blob KZG commitments")
+	}
+
+	if len(blobKzgCommitments) != len(blobsAndProofs) {
+		return nil, ErrSizeMismatch
+	}
+
+	signedBlockHeader, err := signedBlock.Header()
+	if err != nil {
+		return nil, errors.Wrap(err, "signed block header")
+	}
+
+	kzgCommitmentsInclusionProof, err := blocks.MerkleProofKZGCommitments(blockBody)
+	if err != nil {
+		return nil, errors.Wrap(err, "merkle proof ZKG commitments")
+	}
+
+	numberOfColumns := params.BeaconConfig().NumberOfColumns
+
+	blobsCount := len(blobsAndProofs)
+	sidecars := make([]ethpb.PartialDataColumnSidecar, 0, numberOfColumns)
+
+	for columnIndex := range numberOfColumns {
+		sidecars = append(sidecars, ethpb.PartialDataColumnSidecar{
+			Index:                        columnIndex,
+			KzgCommitments:               blobKzgCommitments,
+			Column:                       make([][]byte, blobsCount),
+			KzgProofs:                    make([][]byte, blobsCount),
+			SignedBlockHeader:            signedBlockHeader,
+			KzgCommitmentsInclusionProof: kzgCommitmentsInclusionProof,
+		})
+	}
+
+	for i := range blobsAndProofs {
+		if blobsAndProofs[i] == nil {
+			continue
+		}
+		blob := blobsAndProofs[i].Blob
+		// TODO: can we cast this to avoid the copy?
+		var kzgBlob kzg.Blob
+		copy(kzgBlob[:], blob)
+		cells, err := kzg.ComputeCells(&kzgBlob)
+		if err != nil {
+			return nil, errors.Wrap(err, "compute cells")
+		}
+		proofs := blobsAndProofs[i].KzgProofs
+
+		for columnIndx := range numberOfColumns {
+			sidecars[columnIndx].Column[i] = cells[columnIndx][:]
+			sidecars[columnIndx].KzgProofs[i] = proofs[columnIndx]
+		}
+	}
+
+	return sidecars, nil
 }
 
 // ComputeCustodyGroupForColumn computes the custody group for a given column.

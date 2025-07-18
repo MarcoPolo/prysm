@@ -2583,7 +2583,7 @@ func TestReconstructDataColumnSidecars(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("GetBlobsV2 is not supported", func(t *testing.T) {
-		_, err := client.ReconstructDataColumnSidecars(ctx, sb, r)
+		_, _, err := client.ReconstructDataColumnSidecars(ctx, sb, r)
 		require.ErrorContains(t, "get blobs V2 for block", err)
 	})
 
@@ -2594,7 +2594,7 @@ func TestReconstructDataColumnSidecars(t *testing.T) {
 		rpcClient, client := setupRpcClientV2(t, srv.URL, client)
 		defer rpcClient.Close()
 
-		dataColumns, err := client.ReconstructDataColumnSidecars(ctx, sb, r)
+		dataColumns, _, err := client.ReconstructDataColumnSidecars(ctx, sb, r)
 		require.NoError(t, err)
 		require.Equal(t, 0, len(dataColumns))
 	})
@@ -2607,7 +2607,7 @@ func TestReconstructDataColumnSidecars(t *testing.T) {
 		rpcClient, client := setupRpcClientV2(t, srv.URL, client)
 		defer rpcClient.Close()
 
-		dataColumns, err := client.ReconstructDataColumnSidecars(ctx, sb, r)
+		dataColumns, _, err := client.ReconstructDataColumnSidecars(ctx, sb, r)
 		require.NoError(t, err)
 		require.Equal(t, 128, len(dataColumns))
 	})
@@ -2620,7 +2620,7 @@ func TestReconstructDataColumnSidecars(t *testing.T) {
 		rpcClient, client := setupRpcClientV2(t, srv.URL, client)
 		defer rpcClient.Close()
 
-		dataColumns, err := client.ReconstructDataColumnSidecars(ctx, sb, r)
+		dataColumns, _, err := client.ReconstructDataColumnSidecars(ctx, sb, r)
 		require.ErrorContains(t, errMissingBlobsAndProofsFromEL.Error(), err)
 		require.Equal(t, 0, len(dataColumns))
 	})

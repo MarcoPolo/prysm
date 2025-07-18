@@ -75,8 +75,12 @@ var (
 		Name: "get_blobs_v2_total_count",
 		Help: "The total number of getBlobsV2 calls",
 	})
-	getBlobsV2SuccessCount = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "get_blobs_v2_success_count",
+	getBlobsV2CompleteSuccessCount = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "get_blobs_v2_complete_success_count",
+		Help: "The number of successful getBlobsV2 calls",
+	})
+	getBlobsV2PartialSuccessCount = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "get_blobs_v2_partial_success_count",
 		Help: "The number of successful getBlobsV2 calls",
 	})
 )

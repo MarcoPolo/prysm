@@ -12,6 +12,7 @@ import (
 	"github.com/OffchainLabs/prysm/v6/consensus-types/primitives"
 	"github.com/OffchainLabs/prysm/v6/encoding/bytesutil"
 	pb "github.com/OffchainLabs/prysm/v6/proto/engine/v1"
+	ethpb "github.com/OffchainLabs/prysm/v6/proto/prysm/v1alpha1"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/holiman/uint256"
@@ -116,8 +117,8 @@ func (e *EngineClient) ReconstructBlobSidecars(context.Context, interfaces.ReadO
 	return e.BlobSidecars, e.ErrorBlobSidecars
 }
 
-func (e *EngineClient) ReconstructDataColumnSidecars(context.Context, interfaces.ReadOnlySignedBeaconBlock, [fieldparams.RootLength]byte) ([]blocks.VerifiedRODataColumn, error) {
-	return e.DataColumnSidecars, e.ErrorDataColumnSidecars
+func (e *EngineClient) ReconstructDataColumnSidecars(context.Context, interfaces.ReadOnlySignedBeaconBlock, [fieldparams.RootLength]byte) ([]blocks.VerifiedRODataColumn, []ethpb.PartialDataColumnSidecar, error) {
+	return e.DataColumnSidecars, nil, e.ErrorDataColumnSidecars
 }
 
 // GetTerminalBlockHash --

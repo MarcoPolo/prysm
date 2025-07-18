@@ -13,8 +13,10 @@ import (
 	"github.com/OffchainLabs/prysm/v6/consensus-types/blocks"
 	"github.com/OffchainLabs/prysm/v6/consensus-types/interfaces"
 	"github.com/OffchainLabs/prysm/v6/io/file"
+	ethpb "github.com/OffchainLabs/prysm/v6/proto/prysm/v1alpha1"
 	"github.com/OffchainLabs/prysm/v6/runtime/version"
 	"github.com/OffchainLabs/prysm/v6/time/slots"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
 )
@@ -109,14 +111,14 @@ func (s *Service) processDataColumnSidecarsFromExecution(ctx context.Context, ro
 	}
 
 	// When this function is called, it's from the time when the block is received, so in almost all situations we need to get the data column from EL instead of the blob storage.
-	sidecars, err := s.cfg.executionReconstructor.ReconstructDataColumnSidecars(ctx, roSignedBlock, blockRoot)
+	sidecars, partialColumns, err := s.cfg.executionReconstructor.ReconstructDataColumnSidecars(ctx, roSignedBlock, blockRoot)
 	if err != nil {
 		log.WithError(err).Debug("Cannot reconstruct data column sidecars after receiving the block")
 		return
 	}
 
 	// Return early if no blobs are retrieved from the EL.
-	if len(sidecars) == 0 {
+	if len(sidecars) == 0 && len(partialColumns) == 0 {
 		return
 	}
 
@@ -131,7 +133,78 @@ func (s *Service) processDataColumnSidecarsFromExecution(ctx context.Context, ro
 	blockSlot := block.Slot()
 	proposerIndex := block.ProposerIndex()
 
-	// Broadcast and save data column sidecars to custody but not yet received.
+	if len(partialColumns) > 0 {
+		log.Infof("Have %d partial columns. Broadcasting those", len(partialColumns))
+
+		partialColumnCount := uint64(len(partialColumns))
+		for columnIndex := range info.CustodyColumns {
+			log := log.WithField("partialColumnIndex", columnIndex)
+			if columnIndex >= partialColumnCount {
+				log.Error("Column custody index out of range - should never happen")
+				continue
+			}
+
+			if s.hasSeenDataColumnIndex(blockSlot, proposerIndex, columnIndex) {
+				log.Info("Already seen this column")
+				continue
+			}
+
+			partialPublisher, ok := s.cfg.p2p.(interface {
+				BroadcastPartialDataColumn(
+					dataColumnSubnet uint64,
+					dataColumnSidecar *peerdas.PartialDataColumnSidecar,
+				) error
+			})
+			if !ok {
+				log.Error("Failed to get partial publisher")
+				continue
+			}
+
+			partialColumn := peerdas.PartialDataColumnSidecar{
+				PartialDataColumnSidecar: &partialColumns[columnIndex],
+				OnComplete: func(d *peerdas.PartialDataColumnSidecar) {
+					log.Info("Received complete column")
+					// Publish the full column
+					fullColumn := ethpb.DataColumnSidecar{
+						SignedBlockHeader:            d.SignedBlockHeader,
+						Index:                        d.Index,
+						Column:                       d.Column,
+						KzgCommitments:               d.KzgCommitments,
+						KzgProofs:                    d.KzgProofs,
+						KzgCommitmentsInclusionProof: d.KzgCommitmentsInclusionProof,
+					}
+					if err := s.cfg.p2p.BroadcastDataColumn(blockRoot, d.Index, &fullColumn); err != nil {
+						log.WithError(err).Error("Failed to broadcast data column")
+					}
+				},
+				OnNewData: func(d *peerdas.PartialDataColumnSidecar, newData []byte) {
+					log.Info("Received new data")
+					// republish the partial column
+					// TODO eager push the new data
+					if err := partialPublisher.BroadcastPartialDataColumn(d.Index, d); err != nil {
+						log.WithError(err).Error("Failed to broadcast data column")
+					}
+				},
+				PenalizePeer: func(peerID peer.ID) {
+					// TODO: penalize the peer for giving us malformed data
+				},
+			}
+
+			// Partial publish
+			err := partialPublisher.BroadcastPartialDataColumn(partialColumn.Index, &partialColumn)
+			if err != nil {
+				log.WithError(err).Error("Failed to broadcast partial data column")
+			}
+			log.Info("Broadcasted partial data column")
+		}
+	}
+
+	if len(sidecars) == 0 {
+		// Nothing to do
+		return
+	}
+
+	// Broadcast and save data columns sidecars to custody but not yet received.
 	sidecarCount := uint64(len(sidecars))
 	for columnIndex := range info.CustodyColumns {
 		log := log.WithField("columnIndex", columnIndex)

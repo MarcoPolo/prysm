@@ -28,6 +28,26 @@ option php_namespace = "Ethereum\\Eth\\v1alpha1";
 message DataColumnSidecar {
   uint64 index = 1;
   repeated bytes column = 2 [
+    (ethereum.eth.ext.ssz_size) = "?,bytes_per_cell.size",
+    (ethereum.eth.ext.ssz_max) = "max_blob_commitments.size"
+  ];
+  repeated bytes kzg_commitments = 3 [
+    (ethereum.eth.ext.ssz_size) = "?,48",
+    (ethereum.eth.ext.ssz_max) = "max_blob_commitments.size"
+  ];
+  repeated bytes kzg_proofs = 4 [
+    (ethereum.eth.ext.ssz_size) = "?,48",
+    (ethereum.eth.ext.ssz_max) = "max_blob_commitments.size"
+  ];
+  SignedBeaconBlockHeader signed_block_header = 5;
+  repeated bytes kzg_commitments_inclusion_proof = 6
+      [ (ethereum.eth.ext.ssz_size) =
+            "kzg_commitments_inclusion_proof_depth.size,32" ];
+}
+
+message PartialDataColumnSidecar {
+  uint64 index = 1;
+  repeated bytes column = 2 [
     (ethereum.eth.ext.ssz_size) = "?,?",
     (ethereum.eth.ext.ssz_max) = "max_blob_commitments.size,bytes_per_cell.size"
   ];
@@ -47,5 +67,5 @@ message DataColumnSidecar {
 
 message DataColumnsByRootIdentifier {
   bytes block_root = 1 [ (ethereum.eth.ext.ssz_size) = "32" ];
-  repeated uint64 columns = 2  [ (ethereum.eth.ext.ssz_max) = "128" ];
+  repeated uint64 columns = 2 [ (ethereum.eth.ext.ssz_max) = "128" ];
 }

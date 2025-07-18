@@ -42,7 +42,7 @@ require (
 	github.com/kisielk/errcheck v1.8.0
 	github.com/kr/pretty v0.3.1
 	github.com/libp2p/go-libp2p v0.42.0
-	github.com/libp2p/go-libp2p-mplex v0.9.0
+	github.com/libp2p/go-libp2p-mplex v0.10.0
 	github.com/libp2p/go-libp2p-pubsub v0.14.2
 	github.com/libp2p/go-mplex v0.7.0
 	github.com/logrusorgru/aurora v2.0.3+incompatible
@@ -284,4 +284,4 @@ require (
 
 replace github.com/json-iterator/go => github.com/prestonvanloon/go v1.1.7-0.20190722034630-4f2e55fcf87b
 
-replace github.com/libp2p/go-libp2p-pubsub v0.14.2 => github.com/libp2p/go-libp2p-pubsub v0.14.3-0.20250717225504-7c5bebbd19a3
+replace github.com/libp2p/go-libp2p-pubsub v0.14.2 => github.com/libp2p/go-libp2p-pubsub v0.14.3-0.20250804221917-6a50510169e7

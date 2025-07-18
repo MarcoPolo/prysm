@@ -564,10 +564,10 @@ github.com/libp2p/go-libp2p v0.42.0 h1:A8foZk+ZEhZTv0Jb++7xUFlrFhBDv4j2Vh/uq4YX+
 github.com/libp2p/go-libp2p v0.42.0/go.mod h1:4NGcjbD9OIvFiSRb0XueCO19zJ4kSPK5vkyyOUYmMro=
 github.com/libp2p/go-libp2p-asn-util v0.4.1 h1:xqL7++IKD9TBFMgnLPZR6/6iYhawHKHl950SO9L6n94=
 github.com/libp2p/go-libp2p-asn-util v0.4.1/go.mod h1:d/NI6XZ9qxw67b4e+NgpQexCIiFYJjErASrYW4PFDN8=
-github.com/libp2p/go-libp2p-mplex v0.9.0 h1:R58pDRAmuBXkYugbSSXR9wrTX3+1pFM1xP2bLuodIq8=
-github.com/libp2p/go-libp2p-mplex v0.9.0/go.mod h1:ro1i4kuwiFT+uMPbIDIFkcLs1KRbNp0QwnUXM+P64Og=
-github.com/libp2p/go-libp2p-pubsub v0.14.3-0.20250717225504-7c5bebbd19a3 h1:cGzpFpnAe32TY46fivlJc2oZl+PKr1Z5Sm16JWJfdUk=
-github.com/libp2p/go-libp2p-pubsub v0.14.3-0.20250717225504-7c5bebbd19a3/go.mod h1:MKPU5vMI8RRFyTP0HfdsF9cLmL1nHAeJm44AxJGJx44=
+github.com/libp2p/go-libp2p-mplex v0.10.0 h1:6NKusNu1cw1A/RKb+Lm5aPGFk7HWVIXxl2azpwWqUxc=
+github.com/libp2p/go-libp2p-mplex v0.10.0/go.mod h1:7RT3qPFhDqz4yp5K5QwZB5vE902N8DmED3+e453fNrg=
+github.com/libp2p/go-libp2p-pubsub v0.14.3-0.20250804221917-6a50510169e7 h1:K4XFxoOsp5EtOvCAsDjG0Aqdt7BOU30wdCGl1ZpqFLU=
+github.com/libp2p/go-libp2p-pubsub v0.14.3-0.20250804221917-6a50510169e7/go.mod h1:MKPU5vMI8RRFyTP0HfdsF9cLmL1nHAeJm44AxJGJx44=
 github.com/libp2p/go-libp2p-testing v0.12.0 h1:EPvBb4kKMWO29qP4mZGyhVzUyR25dvfUIK5WDu6iPUA=
 github.com/libp2p/go-libp2p-testing v0.12.0/go.mod h1:KcGDRXyN7sQCllucn1cOOS+Dmm7ujhfEyXQL5lvkcPg=
 github.com/libp2p/go-mplex v0.7.0 h1:BDhFZdlk5tbr0oyFq/xv/NPGfjbnrsDam1EvutpBDbY=

@@ -81,7 +81,12 @@ func (s *Service) LeaveTopic(topic string) error {
 
 // PublishToTopic joins (if necessary) and publishes a message to a PubSub topic.
 func (s *Service) PublishToTopic(ctx context.Context, topic string, data []byte, opts ...pubsub.PubOpt) error {
-	topicHandle, err := s.JoinTopic(topic)
+	var topicOpts []pubsub.TopicOpt
+	// todo: clean this hack up. There must be a better way of asserting this is a data column topic
+	if strings.Contains(topic, "data_column_sidecar") {
+		topicOpts = []pubsub.TopicOpt{pubsub.WithSkipPublishingToPartialMessageCapablePeers()}
+	}
+	topicHandle, err := s.JoinTopic(topic, topicOpts...)
 	if err != nil {
 		return err
 	}

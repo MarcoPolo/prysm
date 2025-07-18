@@ -9,6 +9,7 @@ import (
 
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/core/altair"
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/core/helpers"
+	"github.com/OffchainLabs/prysm/v6/beacon-chain/core/peerdas"
 	fieldparams "github.com/OffchainLabs/prysm/v6/config/fieldparams"
 	"github.com/OffchainLabs/prysm/v6/config/params"
 	"github.com/OffchainLabs/prysm/v6/consensus-types/interfaces"
@@ -17,6 +18,8 @@ import (
 	"github.com/OffchainLabs/prysm/v6/monitoring/tracing/trace"
 	ethpb "github.com/OffchainLabs/prysm/v6/proto/prysm/v1alpha1"
 	"github.com/OffchainLabs/prysm/v6/time/slots"
+	"github.com/libp2p/go-libp2p-pubsub/partialmessages"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/pkg/errors"
 	ssz "github.com/prysmaticlabs/fastssz"
 	"github.com/sirupsen/logrus"
@@ -335,6 +338,48 @@ func (s *Service) BroadcastDataColumn(
 	return nil
 }
 
+// BroadcastParitalDataColumn
+func (s *Service) BroadcastPartialDataColumn(
+	dataColumnSubnet uint64,
+	dataColumnSidecar *peerdas.PartialDataColumnSidecar,
+) error {
+	log.Info("Broadcasting partial data column sidecar")
+
+	// Add tracing to the function.
+	ctx, span := trace.StartSpan(s.ctx, "p2p.BroadcastDataColumn")
+	defer span.End()
+
+	_ = ctx
+
+	// Ensure the data column sidecar is not nil.
+	if dataColumnSidecar.PartialDataColumnSidecar == nil {
+		return errors.Errorf("attempted to broadcast nil data column sidecar at subnet %d", dataColumnSubnet)
+	}
+
+	// Retrieve the current fork digest.
+	forkDigest, err := s.currentForkDigest()
+	if err != nil {
+		err := errors.Wrap(err, "current fork digest")
+		tracing.AnnotateError(span, err)
+		return err
+	}
+
+	// Build the topic corresponding to this column subnet and this fork digest.
+	// This MUST be the same as the existing topic name since we reuse the mesh
+	// peers.
+	topic := dataColumnSubnetToTopic(dataColumnSubnet, forkDigest) + s.Encoding().ProtocolSuffix()
+
+	// Publish the partial column
+	err = s.pubsub.PublishPartialMessage(topic, dataColumnSidecar, partialmessages.PartialMessagePublishOptions{})
+	if err != nil {
+		err := errors.Wrap(err, "publish partial message")
+		tracing.AnnotateError(span, err)
+		return err
+	}
+
+	return nil
+}
+
 func (s *Service) internalBroadcastDataColumn(
 	ctx context.Context,
 	root [fieldparams.RootLength]byte,
@@ -374,6 +419,28 @@ func (s *Service) internalBroadcastDataColumn(
 		return
 	}
 
+	// Broadcast the complete partial message version
+	partialColumn := peerdas.PartialDataColumnSidecar{
+		PartialDataColumnSidecar: &ethpb.PartialDataColumnSidecar{
+			SignedBlockHeader:            dataColumnSidecar.SignedBlockHeader,
+			Index:                        dataColumnSidecar.Index,
+			Column:                       dataColumnSidecar.Column,
+			KzgCommitments:               dataColumnSidecar.KzgCommitments,
+			KzgProofs:                    dataColumnSidecar.KzgProofs,
+			KzgCommitmentsInclusionProof: dataColumnSidecar.KzgCommitmentsInclusionProof,
+		},
+		OnComplete: func(d *peerdas.PartialDataColumnSidecar) {},
+		OnNewData:  func(d *peerdas.PartialDataColumnSidecar, newData []byte) {},
+		PenalizePeer: func(peerID peer.ID) {
+			// TODO: penalize the peer for giving us malformed data
+		},
+	}
+	// TODO: eager push (a portion?) of the column
+	err := s.BroadcastPartialDataColumn(partialColumn.Index, &partialColumn)
+	if err != nil {
+		log.WithError(err).Error("Failed to broadcast partial data column")
+	}
+
 	header := dataColumnSidecar.SignedBlockHeader.GetHeader()
 	slot := header.GetSlot()
 
@@ -388,6 +455,13 @@ func (s *Service) internalBroadcastDataColumn(
 		"root":               fmt.Sprintf("%#x", root),
 		"columnSubnet":       columnSubnet,
 	}).Debug("Broadcasted data column sidecar")
+
+	log.WithFields(logrus.Fields{
+		"slot":               slot,
+		"timeSinceSlotStart": time.Since(slotStartTime),
+		"root":               fmt.Sprintf("%#x", root),
+		"columnSubnet":       columnSubnet,
+	}).Debug("Broadcasted partial data column sidecar")
 
 	// Increase the number of successful broadcasts.
 	dataColumnSidecarBroadcasts.Inc()

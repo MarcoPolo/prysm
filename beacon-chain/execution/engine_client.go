@@ -128,7 +128,7 @@ type Reconstructor interface {
 		ctx context.Context, blindedBlocks []interfaces.ReadOnlySignedBeaconBlock,
 	) ([]interfaces.SignedBeaconBlock, error)
 	ReconstructBlobSidecars(ctx context.Context, block interfaces.ReadOnlySignedBeaconBlock, blockRoot [fieldparams.RootLength]byte, hi func(uint64) bool) ([]blocks.VerifiedROBlob, error)
-	ReconstructDataColumnSidecars(ctx context.Context, block interfaces.ReadOnlySignedBeaconBlock, blockRoot [fieldparams.RootLength]byte) ([]blocks.VerifiedRODataColumn, error)
+	ReconstructDataColumnSidecars(ctx context.Context, block interfaces.ReadOnlySignedBeaconBlock, blockRoot [fieldparams.RootLength]byte) ([]blocks.VerifiedRODataColumn, []ethpb.PartialDataColumnSidecar, error)
 }
 
 // EngineCaller defines a client that can interact with an Ethereum
@@ -550,7 +550,17 @@ func (s *Service) GetBlobsV2(ctx context.Context, versionedHashes []common.Hash)
 	}
 
 	if len(result) > 0 {
-		getBlobsV2SuccessCount.Inc()
+		missingCount := 0
+		for _, r := range result {
+			if r == nil {
+				missingCount++
+			}
+		}
+		if missingCount == 0 {
+			getBlobsV2CompleteSuccessCount.Inc()
+		} else {
+			getBlobsV2PartialSuccessCount.Inc()
+		}
 	}
 	return result, nil
 }
@@ -668,7 +678,7 @@ func (s *Service) ReconstructBlobSidecars(ctx context.Context, block interfaces.
 // ReconstructDataColumnSidecars reconstructs the verified data column sidecars for a given beacon block.
 // It retrieves the KZG commitments from the block body, fetches the associated blobs and cell proofs from the EL,
 // and constructs the corresponding verified read-only data column sidecars.
-func (s *Service) ReconstructDataColumnSidecars(ctx context.Context, signedROBlock interfaces.ReadOnlySignedBeaconBlock, blockRoot [fieldparams.RootLength]byte) ([]blocks.VerifiedRODataColumn, error) {
+func (s *Service) ReconstructDataColumnSidecars(ctx context.Context, signedROBlock interfaces.ReadOnlySignedBeaconBlock, blockRoot [fieldparams.RootLength]byte) ([]blocks.VerifiedRODataColumn, []ethpb.PartialDataColumnSidecar, error) {
 	block := signedROBlock.Block()
 
 	log := log.WithFields(logrus.Fields{
@@ -678,7 +688,7 @@ func (s *Service) ReconstructDataColumnSidecars(ctx context.Context, signedROBlo
 
 	kzgCommitments, err := block.Body().BlobKzgCommitments()
 	if err != nil {
-		return nil, wrapWithBlockRoot(err, blockRoot, "blob KZG commitments")
+		return nil, nil, wrapWithBlockRoot(err, blockRoot, "blob KZG commitments")
 	}
 
 	// Collect KZG hashes for all blobs.
@@ -691,29 +701,41 @@ func (s *Service) ReconstructDataColumnSidecars(ctx context.Context, signedROBlo
 	// Fetch all blobsAndCellsProofs from the execution client.
 	blobAndProofV2s, err := s.GetBlobsV2(ctx, versionedHashes)
 	if err != nil {
-		return nil, wrapWithBlockRoot(err, blockRoot, "get blobs V2")
+		return nil, nil, wrapWithBlockRoot(err, blockRoot, "get blobs V2")
 	}
 
 	// Return early if nothing is returned from the EL.
 	if len(blobAndProofV2s) == 0 {
 		log.Debug("No blobs returned from execution client")
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	// Extract the blobs and proofs from the blobAndProofV2s.
 	blobs, cellProofs := make([][]byte, 0, len(blobAndProofV2s)), make([][]byte, 0, len(blobAndProofV2s))
+	var partial bool
 	for _, blobsAndProofs := range blobAndProofV2s {
 		if blobsAndProofs == nil {
-			return nil, wrapWithBlockRoot(errMissingBlobsAndProofsFromEL, blockRoot, "")
+			partial = true
+			break
 		}
 
 		blobs, cellProofs = append(blobs, blobsAndProofs.Blob), append(cellProofs, blobsAndProofs.KzgProofs...)
 	}
 
+	partialColumns, err := peerdas.PartialDataColumnSidecars(signedROBlock, blobAndProofV2s)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if partial {
+		log.Info("Received partial data column sidecars")
+		return nil, partialColumns, nil
+	}
+
 	// Construct the data column sidcars from the blobs and cell proofs provided by the execution client.
 	dataColumnSidecars, err := peerdas.ConstructDataColumnSidecars(signedROBlock, blobs, cellProofs)
 	if err != nil {
-		return nil, wrapWithBlockRoot(err, blockRoot, "construct data column sidecars")
+		return nil, nil, wrapWithBlockRoot(err, blockRoot, "construct data column sidecars")
 	}
 
 	// Finally, construct verified RO data column sidecars.
@@ -722,7 +744,7 @@ func (s *Service) ReconstructDataColumnSidecars(ctx context.Context, signedROBlo
 	for _, dataColumnSidecar := range dataColumnSidecars {
 		roDataColumn, err := blocks.NewRODataColumnWithRoot(dataColumnSidecar, blockRoot)
 		if err != nil {
-			return nil, wrapWithBlockRoot(err, blockRoot, "new read-only data column with root")
+			return nil, nil, wrapWithBlockRoot(err, blockRoot, "new read-only data column with root")
 		}
 
 		verifiedRODataColumn := blocks.NewVerifiedRODataColumn(roDataColumn)
@@ -731,7 +753,7 @@ func (s *Service) ReconstructDataColumnSidecars(ctx context.Context, signedROBlo
 
 	log.Debug("Data columns successfully reconstructed from the execution client")
 
-	return verifiedRODataColumns, nil
+	return verifiedRODataColumns, partialColumns, nil
 }
 
 func fullPayloadFromPayloadBody(

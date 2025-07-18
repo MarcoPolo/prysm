@@ -6,10 +6,12 @@ package p2p
 import (
 	"context"
 	"crypto/ecdsa"
+	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/OffchainLabs/prysm/v6/async"
+	"github.com/OffchainLabs/prysm/v6/beacon-chain/core/peerdas"
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/p2p/encoder"
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/p2p/peers"
 	"github.com/OffchainLabs/prysm/v6/beacon-chain/p2p/peers/scorers"
@@ -21,6 +23,7 @@ import (
 	leakybucket "github.com/OffchainLabs/prysm/v6/container/leaky-bucket"
 	"github.com/OffchainLabs/prysm/v6/monitoring/tracing/trace"
 	prysmnetwork "github.com/OffchainLabs/prysm/v6/network"
+	ethpb "github.com/OffchainLabs/prysm/v6/proto/prysm/v1alpha1"
 	"github.com/OffchainLabs/prysm/v6/proto/prysm/v1alpha1/metadata"
 	"github.com/OffchainLabs/prysm/v6/runtime"
 	"github.com/OffchainLabs/prysm/v6/time/slots"
@@ -28,6 +31,8 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/libp2p/go-libp2p"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	"github.com/libp2p/go-libp2p-pubsub/partialmessages"
+	pubsub_pb "github.com/libp2p/go-libp2p-pubsub/pb"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -158,6 +163,40 @@ func NewService(ctx context.Context, cfg *Config) (*Service, error) {
 	// account previously added peers when creating the gossipsub
 	// object.
 	psOpts := s.pubsubOptions()
+
+	slogger := slog.New(slog.NewJSONHandler(log.Writer(), &slog.HandlerOptions{Level: slog.LevelDebug}))
+	slogger.Info("Initializing partial messages")
+
+	psOpts = append(psOpts,
+		// pubsub.WithRPCLogger(slogger.With("service", "gossipsub")),
+		pubsub.WithPartialMessagesExtension(&partialmessages.PartialMessageExtension{
+			Logger: slogger.With("service", "partialmessages"),
+			NewPartialMessage: func(topic string, groupID []byte) (partialmessages.PartialMessage, error) {
+				log.Info("Creating new partial message")
+				// TODO: check for a valid topic
+				return &peerdas.PartialDataColumnSidecar{
+					PartialDataColumnSidecar: &ethpb.PartialDataColumnSidecar{},
+					PenalizePeer: func(peer.ID) {
+						// TODO
+					},
+					OnNewData: func(d *peerdas.PartialDataColumnSidecar, newData []byte) {
+						// TODO merge data and rebroadcast
+						log.Info("Partial data column sidecar received new data. (TODO)")
+					},
+					OnComplete: func(d *peerdas.PartialDataColumnSidecar) {
+						// TODO publish full column
+						log.Info("Partial data column sidecar completed. (TODO)")
+					},
+				}, nil
+			},
+			ValidateRPC: func(from peer.ID, rpc *pubsub_pb.PartialMessagesExtension) error {
+				// TODO implement this
+				return nil
+			},
+			GroupTTLByHeatbeat:          3,
+			EagerIWantLimitPerHeartbeat: 1,
+			IWantLimitPerHeartbeat:      3,
+		}))
 
 	// Set the pubsub global parameters that we require.
 	setPubSubParameters()
