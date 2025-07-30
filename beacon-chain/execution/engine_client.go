@@ -537,13 +537,20 @@ func (s *Service) GetBlobsV2(ctx context.Context, versionedHashes []common.Hash)
 	ctx, span := trace.StartSpan(ctx, "powchain.engine-api-client.GetBlobsV2")
 	defer span.End()
 
+	getBlobsV2TotalCount.Inc()
+
 	if !s.capabilityCache.has(GetBlobsV2) {
 		return nil, errors.New(fmt.Sprintf("%s is not supported", GetBlobsV2))
 	}
 
 	result := make([]*pb.BlobAndProofV2, len(versionedHashes))
 	err := s.rpcClient.CallContext(ctx, &result, GetBlobsV2, versionedHashes)
-	return result, handleRPCError(err)
+	if err != nil {
+		return result, handleRPCError(err)
+	}
+	
+	getBlobsV2SuccessCount.Inc()
+	return result, nil
 }
 
 // ReconstructFullBlock takes in a blinded beacon block and reconstructs

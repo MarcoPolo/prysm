@@ -71,4 +71,12 @@ var (
 		Name: "execution_payload_bodies_count",
 		Help: "The number of requested payload bodies is too large",
 	})
+	getBlobsV2TotalCount = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "get_blobs_v2_total_count",
+		Help: "The total number of getBlobsV2 calls",
+	})
+	getBlobsV2SuccessCount = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "get_blobs_v2_success_count",
+		Help: "The number of successful getBlobsV2 calls",
+	})
 )
