@@ -548,8 +548,10 @@ func (s *Service) GetBlobsV2(ctx context.Context, versionedHashes []common.Hash)
 	if err != nil {
 		return result, handleRPCError(err)
 	}
-	
-	getBlobsV2SuccessCount.Inc()
+
+	if len(result) > 0 {
+		getBlobsV2SuccessCount.Inc()
+	}
 	return result, nil
 }
 
