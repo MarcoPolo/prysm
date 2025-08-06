@@ -94,8 +94,9 @@ func (d *PartialDataColumnSidecar) PartialMessageBytesFromMetadata(metadata []by
 
 	// Create a partial sidecar with only the requested cells we have
 	partialSidecar := &ethpb.PartialDataColumnSidecar{
-		Index:                        d.Index,
-		Column:                       make([][]byte, len(d.Column)),
+		Index:  d.Index,
+		Column: make([][]byte, len(d.Column)),
+		// TODO: only include the commitments/proofs that were requested.
 		KzgCommitments:               d.KzgCommitments,
 		KzgProofs:                    d.KzgProofs,
 		SignedBlockHeader:            d.SignedBlockHeader,
