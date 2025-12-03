@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"os"
 	"strings"
 	"time"
 
@@ -211,6 +212,10 @@ func (s *Service) ForkchoiceUpdated(
 	defer func() {
 		forkchoiceUpdatedLatency.Observe(float64(time.Since(start).Milliseconds()))
 	}()
+
+	if os.Getenv("OPTIMISTIC") != "" {
+		return nil, nil, ErrAcceptedSyncingPayloadStatus
+	}
 
 	d := time.Now().Add(time.Duration(params.BeaconConfig().ExecutionEngineTimeoutValue) * time.Second)
 	ctx, cancel := context.WithDeadline(ctx, d)
