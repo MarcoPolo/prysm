@@ -189,6 +189,7 @@ var (
 		Name: "p2p_pubsub_rpc_recv_target_topic_relative_delay_milliseconds",
 		Help: "Relative delay distribution for received RPC messages matching the target topic",
 		Buckets: []float64{
+			-200, -150, -100, -50, 0, // when a peer gets the message before us.
 			50, 100, 150, 200,
 			300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900, 2000,
 			2500, 3000, 3500, 4000,
