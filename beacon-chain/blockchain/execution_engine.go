@@ -3,6 +3,7 @@ package blockchain
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/OffchainLabs/prysm/v7/async/event"
 	"github.com/OffchainLabs/prysm/v7/beacon-chain/cache"
@@ -222,6 +223,10 @@ func (s *Service) getPayloadHash(ctx context.Context, root []byte) ([32]byte, er
 func (s *Service) notifyNewPayload(ctx context.Context, stVersion int, header interfaces.ExecutionData, blk blocktypes.ROBlock) (bool, error) {
 	ctx, span := trace.StartSpan(ctx, "blockChain.notifyNewPayload")
 	defer span.End()
+
+	if os.Getenv("OPTIMISTIC") != "" {
+		return true, nil
+	}
 
 	// Execution payload is only supported in Bellatrix and beyond. Pre
 	// merge blocks are never optimistic
