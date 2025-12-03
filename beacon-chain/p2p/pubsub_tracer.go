@@ -12,7 +12,9 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
+	"github.com/libp2p/go-yamux/v5"
 	"github.com/prometheus/client_golang/prometheus"
+	quicgo "github.com/quic-go/quic-go"
 	"github.com/sirupsen/logrus"
 )
 
@@ -125,6 +127,25 @@ func (g *gossipTracer) ThrottlePeer(p peer.ID) {
 	pubsubPeerThrottle.WithLabelValues(agent).Inc()
 }
 
+func (g *gossipTracer) rttToPeer(p peer.ID) time.Duration {
+	conns := g.host.Network().ConnsToPeer(p)
+	for _, c := range conns {
+		var quicConn *quicgo.Conn
+		if c.As(&quicConn) {
+			return quicConn.ConnectionStats().SmoothedRTT
+		}
+	}
+
+	for _, c := range conns {
+		var yamuxSession *yamux.Session
+		if c.As(&yamuxSession) {
+			return yamuxSession.RTT()
+		}
+	}
+
+	return 0
+}
+
 // RecvRPC .
 func (g *gossipTracer) RecvRPC(from peer.ID, rpc *pubsub.RPC) {
 	if rpc != nil {
@@ -140,11 +161,19 @@ func (g *gossipTracer) RecvRPC(from peer.ID, rpc *pubsub.RPC) {
 			// log.Info("Received message", "topic", topic)
 			targetTopic := os.Getenv("LOG_TOPIC")
 			if targetTopic != "" && strings.Contains(topic, targetTopic) {
+				rttToPeer := g.rttToPeer(from)
+				if rttToPeer == 0 {
+					log.Debug("Skipping message due to zero RTT")
+					continue
+				}
+
 				h := sha256.Sum256(m.GetData())
 				hStr := fmt.Sprintf("%x", h)
 				now := time.Now()
+				peerReceivedMessageAt := now.Add(-rttToPeer/2)
+
 				g.cacheMu.Lock()
-				relativeDelay := now.Sub(g.tsOfFirstReceivedMessage.addOrGet(hStr, now))
+				relativeDelay := peerReceivedMessageAt.Sub(g.tsOfFirstReceivedMessage.addOrGet(hStr, now))
 				g.cacheMu.Unlock()
 				pubsubRPCTargetTopicRelativeDelay.Observe(1000 * relativeDelay.Seconds())
 				log.WithFields(
