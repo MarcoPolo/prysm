@@ -1,6 +1,11 @@
 package p2p
 
 import (
+	"crypto/sha256"
+	"fmt"
+	"os"
+	"strings"
+
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -88,6 +93,24 @@ func (g gossipTracer) ThrottlePeer(p peer.ID) {
 
 // RecvRPC .
 func (g gossipTracer) RecvRPC(from peer.ID, rpc *pubsub.RPC) {
+	if rpc != nil {
+		for _, m := range rpc.Publish {
+			topic := m.GetTopic()
+			// if strings.Contains(topic, "beacon_attestation") {
+			// 	continue
+			// } else if strings.Contains(topic, "beacon_aggregate") {
+			// 	continue
+			// } else if strings.Contains(topic, "sync_com") {
+			// 	continue
+			// }
+			// log.Info("Received message", "topic", topic)
+			targetTopic := os.Getenv("LOG_TOPIC")
+			if targetTopic != "" && strings.Contains(topic, targetTopic) {
+				h := sha256.Sum256(m.GetData())
+				log.Info("Received message", "topic=", topic, " from=", from.String(), " hash=", fmt.Sprintf("%x", h))
+			}
+		}
+	}
 	g.setMetricFromRPC(recv, pubsubRPCSubRecv, pubsubRPCPubRecv, pubsubRPCRecv, rpc)
 }
 
