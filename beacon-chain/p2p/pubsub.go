@@ -167,7 +167,7 @@ func (s *Service) pubsubOptions() []pubsub.Option {
 			}
 			return nil
 		}),
-		pubsub.WithRawTracer(gossipTracer{host: s.host}),
+		pubsub.WithRawTracer(&gossipTracer{host: s.host, tsOfFirstReceivedMessage: simpleCache[time.Time]{Limit: 4}}),
 	}
 
 	if len(s.cfg.StaticPeers) > 0 {

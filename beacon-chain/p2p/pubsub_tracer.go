@@ -5,15 +5,18 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
+	"time"
 
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/sirupsen/logrus"
 )
 
-var _ = pubsub.RawTracer(gossipTracer{})
+var _ = pubsub.RawTracer(&gossipTracer{})
 
 // Initializes the values for the pubsub rpc action.
 type action int
@@ -24,75 +27,106 @@ const (
 	drop
 )
 
+type simpleCache[T any] struct {
+	cache map[string]T
+	items []string
+	Limit int
+}
+
+func (c *simpleCache[T]) add(k string, v T) {
+	if c.cache == nil {
+		c.cache = make(map[string]T)
+	}
+	if len(c.items) >= c.Limit {
+		delete(c.cache, c.items[0])
+		c.items = c.items[1:]
+	}
+	c.cache[k] = v
+	c.items = append(c.items, k)
+}
+
+func (c *simpleCache[T]) get(k string) T {
+	return c.cache[k]
+}
+
+func (c *simpleCache[T]) addOrGet(k string, v T) T {
+	if _, ok := c.cache[k]; !ok {
+		c.add(k, v)
+	}
+	return c.cache[k]
+}
+
 // This tracer is used to implement metrics collection for messages received
 // and broadcasted through gossipsub.
 type gossipTracer struct {
-	host host.Host
+	host                     host.Host
+	cacheMu                  sync.Mutex
+	tsOfFirstReceivedMessage simpleCache[time.Time]
 }
 
 // AddPeer .
-func (g gossipTracer) AddPeer(p peer.ID, proto protocol.ID) {
+func (g *gossipTracer) AddPeer(p peer.ID, proto protocol.ID) {
 	// no-op
 }
 
 // RemovePeer .
-func (g gossipTracer) RemovePeer(p peer.ID) {
+func (g *gossipTracer) RemovePeer(p peer.ID) {
 	// no-op
 }
 
 // Join .
-func (g gossipTracer) Join(topic string) {
+func (g *gossipTracer) Join(topic string) {
 	pubsubTopicsActive.WithLabelValues(topic).Set(1)
 }
 
 // Leave .
-func (g gossipTracer) Leave(topic string) {
+func (g *gossipTracer) Leave(topic string) {
 	pubsubTopicsActive.WithLabelValues(topic).Set(0)
 }
 
 // Graft .
-func (g gossipTracer) Graft(p peer.ID, topic string) {
+func (g *gossipTracer) Graft(p peer.ID, topic string) {
 	pubsubTopicsGraft.WithLabelValues(topic).Inc()
 }
 
 // Prune .
-func (g gossipTracer) Prune(p peer.ID, topic string) {
+func (g *gossipTracer) Prune(p peer.ID, topic string) {
 	pubsubTopicsPrune.WithLabelValues(topic).Inc()
 }
 
 // ValidateMessage .
-func (g gossipTracer) ValidateMessage(msg *pubsub.Message) {
+func (g *gossipTracer) ValidateMessage(msg *pubsub.Message) {
 	pubsubMessageValidate.WithLabelValues(*msg.Topic).Inc()
 }
 
 // DeliverMessage .
-func (g gossipTracer) DeliverMessage(msg *pubsub.Message) {
+func (g *gossipTracer) DeliverMessage(msg *pubsub.Message) {
 	pubsubMessageDeliver.WithLabelValues(*msg.Topic).Inc()
 }
 
 // RejectMessage .
-func (g gossipTracer) RejectMessage(msg *pubsub.Message, reason string) {
+func (g *gossipTracer) RejectMessage(msg *pubsub.Message, reason string) {
 	pubsubMessageReject.WithLabelValues(*msg.Topic, reason).Inc()
 }
 
 // DuplicateMessage .
-func (g gossipTracer) DuplicateMessage(msg *pubsub.Message) {
+func (g *gossipTracer) DuplicateMessage(msg *pubsub.Message) {
 	pubsubMessageDuplicate.WithLabelValues(*msg.Topic).Inc()
 }
 
 // UndeliverableMessage .
-func (g gossipTracer) UndeliverableMessage(msg *pubsub.Message) {
+func (g *gossipTracer) UndeliverableMessage(msg *pubsub.Message) {
 	pubsubMessageUndeliverable.WithLabelValues(*msg.Topic).Inc()
 }
 
 // ThrottlePeer .
-func (g gossipTracer) ThrottlePeer(p peer.ID) {
+func (g *gossipTracer) ThrottlePeer(p peer.ID) {
 	agent := agentFromPid(p, g.host.Peerstore())
 	pubsubPeerThrottle.WithLabelValues(agent).Inc()
 }
 
 // RecvRPC .
-func (g gossipTracer) RecvRPC(from peer.ID, rpc *pubsub.RPC) {
+func (g *gossipTracer) RecvRPC(from peer.ID, rpc *pubsub.RPC) {
 	if rpc != nil {
 		for _, m := range rpc.Publish {
 			topic := m.GetTopic()
@@ -107,7 +141,19 @@ func (g gossipTracer) RecvRPC(from peer.ID, rpc *pubsub.RPC) {
 			targetTopic := os.Getenv("LOG_TOPIC")
 			if targetTopic != "" && strings.Contains(topic, targetTopic) {
 				h := sha256.Sum256(m.GetData())
-				log.Info("Received message", "topic=", topic, " from=", from.String(), " hash=", fmt.Sprintf("%x", h))
+				hStr := fmt.Sprintf("%x", h)
+				now := time.Now()
+				g.cacheMu.Lock()
+				relativeDelay := now.Sub(g.tsOfFirstReceivedMessage.addOrGet(hStr, now))
+				g.cacheMu.Unlock()
+				log.WithFields(
+					logrus.Fields{
+						"topic":          topic,
+						"from":           from.String(),
+						"relative_delay": relativeDelay,
+						"hash":           hStr,
+					},
+				).Info("Received message")
 			}
 		}
 	}
@@ -115,16 +161,16 @@ func (g gossipTracer) RecvRPC(from peer.ID, rpc *pubsub.RPC) {
 }
 
 // SendRPC .
-func (g gossipTracer) SendRPC(rpc *pubsub.RPC, p peer.ID) {
+func (g *gossipTracer) SendRPC(rpc *pubsub.RPC, p peer.ID) {
 	g.setMetricFromRPC(send, pubsubRPCSubSent, pubsubRPCPubSent, pubsubRPCSent, rpc)
 }
 
 // DropRPC .
-func (g gossipTracer) DropRPC(rpc *pubsub.RPC, p peer.ID) {
+func (g *gossipTracer) DropRPC(rpc *pubsub.RPC, p peer.ID) {
 	g.setMetricFromRPC(drop, pubsubRPCSubDrop, pubsubRPCPubDrop, pubsubRPCDrop, rpc)
 }
 
-func (g gossipTracer) setMetricFromRPC(act action, subCtr prometheus.Counter, pubCtr, ctrlCtr *prometheus.CounterVec, rpc *pubsub.RPC) {
+func (g *gossipTracer) setMetricFromRPC(act action, subCtr prometheus.Counter, pubCtr, ctrlCtr *prometheus.CounterVec, rpc *pubsub.RPC) {
 	subCtr.Add(float64(len(rpc.Subscriptions)))
 	if rpc.Control != nil {
 		ctrlCtr.WithLabelValues("graft").Add(float64(len(rpc.Control.Graft)))
