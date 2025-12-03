@@ -1936,12 +1936,6 @@ def prysm_deps():
         version = "v0.4.1",
     )
     go_repository(
-        name = "com_github_libp2p_go_libp2p_mplex",
-        importpath = "github.com/libp2p/go-libp2p-mplex",
-        sum = "h1:R58pDRAmuBXkYugbSSXR9wrTX3+1pFM1xP2bLuodIq8=",
-        version = "v0.9.0",
-    )
-    go_repository(
         name = "com_github_libp2p_go_libp2p_pubsub",
         build_file_proto_mode = "disable_global",
         importpath = "github.com/libp2p/go-libp2p-pubsub",
@@ -1953,12 +1947,6 @@ def prysm_deps():
         importpath = "github.com/libp2p/go-libp2p-testing",
         sum = "h1:EPvBb4kKMWO29qP4mZGyhVzUyR25dvfUIK5WDu6iPUA=",
         version = "v0.12.0",
-    )
-    go_repository(
-        name = "com_github_libp2p_go_mplex",
-        importpath = "github.com/libp2p/go-mplex",
-        sum = "h1:BDhFZdlk5tbr0oyFq/xv/NPGfjbnrsDam1EvutpBDbY=",
-        version = "v0.7.0",
     )
     go_repository(
         name = "com_github_libp2p_go_msgio",

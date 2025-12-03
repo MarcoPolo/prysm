@@ -132,7 +132,7 @@ func TestDefaultMultiplexers(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, protocol.ID("/yamux/1.0.0"), cfg.Muxers[0].ID)
-	assert.Equal(t, protocol.ID("/mplex/6.7.0"), cfg.Muxers[1].ID)
+	// assert.Equal(t, protocol.ID("/mplex/6.7.0"), cfg.Muxers[1].ID)
 }
 
 func TestSetConnManagerOption(t *testing.T) {
