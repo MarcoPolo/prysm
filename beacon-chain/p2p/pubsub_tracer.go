@@ -87,7 +87,7 @@ func (g gossipTracer) ThrottlePeer(p peer.ID) {
 }
 
 // RecvRPC .
-func (g gossipTracer) RecvRPC(rpc *pubsub.RPC) {
+func (g gossipTracer) RecvRPC(from peer.ID, rpc *pubsub.RPC) {
 	g.setMetricFromRPC(recv, pubsubRPCSubRecv, pubsubRPCPubRecv, pubsubRPCRecv, rpc)
 }
 
