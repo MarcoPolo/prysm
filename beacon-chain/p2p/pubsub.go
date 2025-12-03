@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -136,6 +137,13 @@ func (s *Service) peerInspector(peerMap map[peer.ID]*pubsub.PeerScoreSnapshot) {
 func (s *Service) pubsubOptions() []pubsub.Option {
 	filt := pubsub.NewAllowlistSubscriptionFilter(s.allTopicStrings()...)
 	filt = pubsub.WrapLimitSubscriptionFilter(filt, pubsubSubscriptionRequestLimit)
+
+	largeMeshSmallForward := pubsubGossipParam()
+	largeMeshSmallForward.Dhi = 512
+	largeMeshSmallForward.D = 256
+	largeMeshSmallForward.Dlo = 128
+	largeMeshSmallForward.Dforward = 1
+
 	psOpts := []pubsub.Option{
 		pubsub.WithMessageSignaturePolicy(pubsub.StrictNoSign),
 		pubsub.WithNoAuthor(),
@@ -149,6 +157,13 @@ func (s *Service) pubsubOptions() []pubsub.Option {
 		pubsub.WithPeerScore(peerScoringParams(s.cfg.IPColocationWhitelist)),
 		pubsub.WithPeerScoreInspect(s.peerInspector, time.Minute),
 		pubsub.WithGossipSubParams(pubsubGossipParam()),
+		pubsub.WithGossipSubParamsFn(func(topic string) *pubsub.GossipSubParams {
+			targetTopic := os.Getenv("LOG_TOPIC")
+			if targetTopic != "" && strings.Contains(topic, targetTopic) {
+				return &largeMeshSmallForward
+			}
+			return nil
+		}),
 		pubsub.WithRawTracer(gossipTracer{host: s.host}),
 	}
 
