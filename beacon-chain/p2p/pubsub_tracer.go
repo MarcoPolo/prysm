@@ -146,6 +146,7 @@ func (g *gossipTracer) RecvRPC(from peer.ID, rpc *pubsub.RPC) {
 				g.cacheMu.Lock()
 				relativeDelay := now.Sub(g.tsOfFirstReceivedMessage.addOrGet(hStr, now))
 				g.cacheMu.Unlock()
+				pubsubRPCTargetTopicRelativeDelay.Observe(1000 * relativeDelay.Seconds())
 				log.WithFields(
 					logrus.Fields{
 						"topic":          topic,
