@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"math"
 	"os"
 	"strings"
 	"time"
@@ -139,10 +140,12 @@ func (s *Service) pubsubOptions() []pubsub.Option {
 	filt = pubsub.WrapLimitSubscriptionFilter(filt, pubsubSubscriptionRequestLimit)
 
 	largeMeshSmallForward := pubsubGossipParam()
-	largeMeshSmallForward.Dhi = 512
-	largeMeshSmallForward.D = 256
-	largeMeshSmallForward.Dlo = 128
+	largeMeshSmallForward.D = 512
+	largeMeshSmallForward.Dhi = largeMeshSmallForward.D + 100
+	largeMeshSmallForward.Dlo = largeMeshSmallForward.D - 100
 	largeMeshSmallForward.Dforward = 1
+	// Disable IDONTWANT since we want to receive all messages from peers
+	largeMeshSmallForward.IDontWantMessageThreshold = math.MaxInt
 
 	psOpts := []pubsub.Option{
 		pubsub.WithMessageSignaturePolicy(pubsub.StrictNoSign),
