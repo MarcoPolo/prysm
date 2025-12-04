@@ -79,7 +79,8 @@ var (
 
 func peerScoringParams(colocationWhitelist []*net.IPNet) (*pubsub.PeerScoreParams, *pubsub.PeerScoreThresholds) {
 	thresholds := &pubsub.PeerScoreThresholds{
-		GossipThreshold:             -4000,
+		// Disable Gossiping
+		GossipThreshold:             math.MaxFloat64,
 		PublishThreshold:            -8000,
 		GraylistThreshold:           -16000,
 		AcceptPXThreshold:           100,
