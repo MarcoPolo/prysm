@@ -163,14 +163,14 @@ func (g *gossipTracer) RecvRPC(from peer.ID, rpc *pubsub.RPC) {
 			if targetTopic != "" && strings.Contains(topic, targetTopic) {
 				rttToPeer := g.rttToPeer(from)
 				if rttToPeer == 0 {
-					log.Debug("Skipping message due to zero RTT")
+					log.Warn("Skipping message due to zero RTT")
 					continue
 				}
 
 				h := sha256.Sum256(m.GetData())
 				hStr := fmt.Sprintf("%x", h)
 				now := time.Now()
-				peerReceivedMessageAt := now.Add(-rttToPeer/2)
+				peerReceivedMessageAt := now.Add(-rttToPeer / 2)
 
 				g.cacheMu.Lock()
 				relativeDelay := peerReceivedMessageAt.Sub(g.tsOfFirstReceivedMessage.addOrGet(hStr, now))
@@ -178,10 +178,10 @@ func (g *gossipTracer) RecvRPC(from peer.ID, rpc *pubsub.RPC) {
 				pubsubRPCTargetTopicRelativeDelay.Observe(1000 * relativeDelay.Seconds())
 				log.WithFields(
 					logrus.Fields{
-						"topic":          topic,
-						"from":           from.String(),
-						"relative_delay": relativeDelay,
-						"hash":           hStr,
+						"topic":             topic,
+						"from":              from.String(),
+						"relative_delay_ms": relativeDelay.Seconds() * 1000,
+						"hash":              hStr,
 					},
 				).Info("Received message")
 			}
