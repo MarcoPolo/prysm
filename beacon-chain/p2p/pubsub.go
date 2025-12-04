@@ -144,6 +144,9 @@ func (s *Service) pubsubOptions() []pubsub.Option {
 	largeMeshSmallForward.Dhi = largeMeshSmallForward.D + 100
 	largeMeshSmallForward.Dlo = largeMeshSmallForward.D - 100
 	largeMeshSmallForward.Dforward = 1
+	largeMeshSmallForward.Dlazy = 0
+	largeMeshSmallForward.GossipFactor = 0
+	largeMeshSmallForward.PruneBackoff = 0
 	// Disable IDONTWANT since we want to receive all messages from peers
 	largeMeshSmallForward.IDontWantMessageThreshold = math.MaxInt
 
