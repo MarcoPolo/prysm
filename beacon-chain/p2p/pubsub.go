@@ -16,6 +16,8 @@ import (
 	pubsubpb "github.com/libp2p/go-libp2p-pubsub/pb"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/pkg/errors"
+	otelprom "go.opentelemetry.io/otel/exporters/prometheus"
+	"go.opentelemetry.io/otel/sdk/metric"
 )
 
 const (
@@ -136,7 +138,16 @@ func (s *Service) peerInspector(peerMap map[peer.ID]*pubsub.PeerScoreSnapshot) {
 func (s *Service) pubsubOptions() []pubsub.Option {
 	filt := pubsub.NewAllowlistSubscriptionFilter(s.allTopicStrings()...)
 	filt = pubsub.WrapLimitSubscriptionFilter(filt, pubsubSubscriptionRequestLimit)
+	promReader, err := otelprom.New()
+	if err != nil {
+		log.WithError(err).Error("failed to create prometheus reader")
+	}
+	mp := metric.NewMeterProvider(
+		metric.WithReader(promReader),
+	)
+
 	psOpts := []pubsub.Option{
+		pubsub.WithMeterProvider(mp),
 		pubsub.WithMessageSignaturePolicy(pubsub.StrictNoSign),
 		pubsub.WithNoAuthor(),
 		pubsub.WithMessageIdFn(func(pmsg *pubsubpb.Message) string {
