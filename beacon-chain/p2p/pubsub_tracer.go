@@ -1,11 +1,14 @@
 package p2p
 
 import (
+	"strings"
+
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/sirupsen/logrus"
 )
 
 var _ = pubsub.RawTracer(gossipTracer{})
@@ -58,6 +61,15 @@ func (g gossipTracer) Prune(p peer.ID, topic string) {
 // ValidateMessage .
 func (g gossipTracer) ValidateMessage(msg *pubsub.Message) {
 	pubsubMessageValidate.WithLabelValues(*msg.Topic).Inc()
+	if strings.Contains(*msg.Topic, GossipBlockMessage) {
+		log.WithField("peer", msg.ReceivedFrom.String()).Debug("Received block from gossipsub")
+	}
+	if strings.Contains(*msg.Topic, GossipDataColumnSidecarMessage) {
+		log.WithFields(logrus.Fields{
+			"peer":  msg.ReceivedFrom.String(),
+			"topic": *msg.Topic,
+		}).Debug("Received data column from gossipsub")
+	}
 }
 
 // DeliverMessage .
