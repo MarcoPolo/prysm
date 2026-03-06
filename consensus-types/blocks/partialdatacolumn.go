@@ -37,6 +37,22 @@ type PartialDataColumn struct {
 	groupID []byte
 
 	Included bitfield.Bitlist
+	// set to true when the node itself has Published this column. We only want
+	// to republish in response to an incoming RPC after we publish this column
+	// ourselves, as that is the point we know what cells we have or are
+	// missing.
+	Published bool
+}
+
+func NewPartialDataColumnFromVerifiedRODataColumn(c VerifiedRODataColumn) PartialDataColumn {
+	included := bitfield.NewBitlist(uint64(len(c.KzgCommitments)))
+	included = included.Not()
+
+	return PartialDataColumn{
+		DataColumnSidecar: c.DataColumnSidecar,
+		root:              c.root,
+		Included:          included,
+	}
 }
 
 // NewPartialDataColumn creates a new Partial Data Column for the given block.

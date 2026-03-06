@@ -60,9 +60,6 @@ type PartialColumnBroadcaster struct {
 	handleColumn   SubHandler
 	handleHeader   HeaderHandler
 
-	// map groupID -> bool to signal when getBlobs has been called
-	getBlobsCalled map[string]bool
-
 	// map topic -> *pubsub.Topic
 	topics map[string]*pubsub.Topic
 
@@ -145,7 +142,6 @@ func NewBroadcaster() *PartialColumnBroadcaster {
 		partialMsgStore:  make(map[string]map[string]*blocks.PartialDataColumn),
 		groupTTL:         make(map[string]int8),
 		validHeaderCache: make(map[string]*ethpb.PartialDataColumnHeader),
-		getBlobsCalled:   make(map[string]bool),
 		// GossipSub sends the messages to this channel. The buffer should be
 		// big enough to avoid dropping messages. We don't want to block the gossipsub event loop for this.
 		incomingReq: make(chan request, 128*16),
@@ -252,7 +248,6 @@ func (p *PartialColumnBroadcaster) loop() {
 
 				delete(p.groupTTL, groupID)
 				delete(p.validHeaderCache, groupID)
-				delete(p.getBlobsCalled, groupID)
 				for topic, msgStore := range p.partialMsgStore {
 					delete(msgStore, groupID)
 					if len(msgStore) == 0 {
@@ -524,9 +519,8 @@ func (p *PartialColumnBroadcaster) handleIncomingRPC(rpcWithFrom rpcWithFrom) er
 		}
 	}
 
-	getBlobsCalled := p.getBlobsCalled[string(groupID)]
-	if !getBlobsCalled {
-		log.WithFields(logrus.Fields{"topic": topicID, "group": groupID}).Debug("GetBlobs not called, skipping republish")
+	if !ourDataColumn.Published {
+		log.WithFields(logrus.Fields{"topic": topicID, "group": groupID}).Debug("Column not published, skipping republish")
 		return nil
 	}
 
@@ -576,9 +570,8 @@ func (p *PartialColumnBroadcaster) handleCellsValidated(cells *cellsValidated) e
 			log.WithFields(logrus.Fields{"topic": cells.topic, "group": cells.group}).Info("Extended partial column")
 		}
 
-		getBlobsCalled := p.getBlobsCalled[string(ourDataColumn.GroupID())]
-		if !getBlobsCalled {
-			log.WithFields(logrus.Fields{"topic": cells.topic, "group": cells.group}).Debug("GetBlobs not called, skipping republish")
+		if !ourDataColumn.Published {
+			log.WithFields(logrus.Fields{"topic": cells.topic, "group": cells.group}).Debug("Column not published, skipping republish")
 			return nil
 		}
 
@@ -627,7 +620,7 @@ func (p *PartialColumnBroadcaster) gossip(topic string, groupID []byte) {
 		// Nothing useful here
 		return
 	}
-	if !p.getBlobsCalled[string(groupID)] {
+	if !existing.Published {
 		return
 	}
 	err := p.publishPartialCol(topic, existing.GroupID(), existing)
@@ -671,10 +664,10 @@ func (p *PartialColumnBroadcaster) publish(topicsAndColumns iter.Seq2[string, bl
 		p.groupTTL[string(groupIDBytes)] = TTLInSlots
 		err := p.publishPartialCol(topic, groupIDBytes, existing)
 		if err == nil {
-			// Publishing is only done after getBlobs has been called
-			p.getBlobsCalled[string(groupIDBytes)] = true
+			existing.Published = true
+		} else {
+			aggErr = stderrors.Join(aggErr, err)
 		}
-		aggErr = stderrors.Join(aggErr, err)
 	}
 	return aggErr
 }

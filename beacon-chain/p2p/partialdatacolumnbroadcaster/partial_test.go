@@ -816,7 +816,7 @@ func TestPartialColumnBroadcaster_handleIncomingRPC(t *testing.T) {
 				b.partialMsgStore[validTopic] = map[string]*blocks.PartialDataColumn{
 					string(group): existing,
 				}
-				b.getBlobsCalled[string(group)] = true
+				existing.Published = true
 				return testSetup{
 					inputRPC: buildIncomingRPC(validTopic, group, nil, []byte{0x01, 0x02}),
 				}
@@ -921,9 +921,8 @@ func TestPartialColumnBroadcaster_handleCellsValidated(t *testing.T) {
 	const topic = "/eth2/abcd1234/data_column_sidecar_12/ssz_snappy"
 
 	type testSetup struct {
-		column         *blocks.PartialDataColumn
-		group          []byte
-		getBlobsCalled bool
+		column *blocks.PartialDataColumn
+		group  []byte
 	}
 
 	tests := []struct {
@@ -952,10 +951,10 @@ func TestPartialColumnBroadcaster_handleCellsValidated(t *testing.T) {
 				c := createPartialColumn(t, 3, map[uint64][]byte{
 					0: {0x10},
 				})
+				c.Published = true
 				return testSetup{
-					column:         c,
-					group:          c.GroupID(),
-					getBlobsCalled: true,
+					column: c,
+					group:  c.GroupID(),
 				}
 			},
 			validatedCells: map[uint64][]byte{
@@ -968,15 +967,14 @@ func TestPartialColumnBroadcaster_handleCellsValidated(t *testing.T) {
 			},
 		},
 		{
-			name: "extends incomplete column and skips publish when getBlobs not called",
+			name: "extends incomplete column and skips republish when column not previously published",
 			setup: func(t *testing.T) testSetup {
 				c := createPartialColumn(t, 4, map[uint64][]byte{
 					0: {0x20},
 				})
 				return testSetup{
-					column:         c,
-					group:          c.GroupID(),
-					getBlobsCalled: false,
+					column: c,
+					group:  c.GroupID(),
 				}
 			},
 			validatedCells: map[uint64][]byte{
@@ -990,15 +988,15 @@ func TestPartialColumnBroadcaster_handleCellsValidated(t *testing.T) {
 			},
 		},
 		{
-			name: "extends incomplete column and publishes when getBlobs called",
+			name: "extends incomplete column and republishes when column previously published",
 			setup: func(t *testing.T) testSetup {
 				c := createPartialColumn(t, 4, map[uint64][]byte{
 					0: {0x30},
 				})
+				c.Published = true
 				return testSetup{
-					column:         c,
-					group:          c.GroupID(),
-					getBlobsCalled: true,
+					column: c,
+					group:  c.GroupID(),
 				}
 			},
 			validatedCells: map[uint64][]byte{
@@ -1019,10 +1017,10 @@ func TestPartialColumnBroadcaster_handleCellsValidated(t *testing.T) {
 				c := createPartialColumn(t, 4, map[uint64][]byte{
 					0: {0x40},
 				})
+				c.Published = true
 				return testSetup{
-					column:         c,
-					group:          c.GroupID(),
-					getBlobsCalled: true,
+					column: c,
+					group:  c.GroupID(),
 				}
 			},
 			validatedCells: map[uint64][]byte{
@@ -1038,15 +1036,14 @@ func TestPartialColumnBroadcaster_handleCellsValidated(t *testing.T) {
 			},
 		},
 		{
-			name: "extends to complete and invokes handleColumn without publish when getBlobs not called",
+			name: "extends to complete and invokes handleColumn without republish",
 			setup: func(t *testing.T) testSetup {
 				c := createPartialColumn(t, 2, map[uint64][]byte{
 					0: {0x50},
 				})
 				return testSetup{
-					column:         c,
-					group:          c.GroupID(),
-					getBlobsCalled: false,
+					column: c,
+					group:  c.GroupID(),
 				}
 			},
 			validatedCells: map[uint64][]byte{
@@ -1061,15 +1058,15 @@ func TestPartialColumnBroadcaster_handleCellsValidated(t *testing.T) {
 			},
 		},
 		{
-			name: "extends to complete, invokes handleColumn, and publishes when getBlobs called",
+			name: "extends to complete, invokes handleColumn, and republishes when column was previously published",
 			setup: func(t *testing.T) testSetup {
 				c := createPartialColumn(t, 2, map[uint64][]byte{
 					0: {0x60},
 				})
+				c.Published = true
 				return testSetup{
-					column:         c,
-					group:          c.GroupID(),
-					getBlobsCalled: true,
+					column: c,
+					group:  c.GroupID(),
 				}
 			},
 			validatedCells: map[uint64][]byte{
@@ -1097,7 +1094,6 @@ func TestPartialColumnBroadcaster_handleCellsValidated(t *testing.T) {
 				h.broadcaster.partialMsgStore[topic] = map[string]*blocks.PartialDataColumn{
 					string(setup.group): setup.column,
 				}
-				h.broadcaster.getBlobsCalled[string(setup.group)] = setup.getBlobsCalled
 			}
 			h.broadcaster.handleColumn = recorder.HandleColumn
 
@@ -1258,9 +1254,8 @@ func TestPartialColumnBroadcaster_Publish(t *testing.T) {
 			assertPartialColumnsEqual(t, expectedStored, stored)
 			ps.assertPartialColumnsPublished(t, topic, []*blocks.PartialDataColumn{expectedStored})
 
-			getBlobs := h.broadcaster.getBlobsCalled[groupID]
-			// getBlobs is only updated if err == nil
-			require.Equal(t, err == nil, getBlobs)
+			// .Published is only updated if err == nil
+			require.Equal(t, err == nil, stored.Published)
 
 			if tt.expectHandleColumn {
 				select {
